@@ -1,1 +1,1 @@
-POST http://localhost:7071/api/HttpTrigger
+POST http://localhost:7071/api/HttpTrigger?x=3&y=12

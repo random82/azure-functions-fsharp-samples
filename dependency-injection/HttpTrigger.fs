@@ -1,53 +1,43 @@
 namespace Company.Function
 
 open System
-open System.IO
 open Microsoft.AspNetCore.Mvc
 open Microsoft.Azure.WebJobs
 open Microsoft.Azure.WebJobs.Extensions.Http
 open Microsoft.AspNetCore.Http
-open Newtonsoft.Json
 open Microsoft.Extensions.Logging
 
-module HttpTrigger =
-    // Define a nullable container to deserialize into.
-    [<AllowNullLiteral>]
-    type NameContainer() =
-        member val Name = "" with get, set
+// Using type notation for functions allows injections
+type HttpTrigger(injectedMultiplier: FSharpFunction.Multiplier) =
 
     // For convenience, it's better to have a central place for the literal.
     [<Literal>]
-    let Name = "name"
+    let XParam = "x"
+    [<Literal>]
+    let YParam = "y"
+
+    let getParamFromQueryString (req:HttpRequest) name = 
+        if req.Query.ContainsKey(name) then
+            let param = req.Query.[name].[0]            
+            match Int32.TryParse param with
+            | true, i -> Some(i)
+            | _ -> None
+        else
+            None
 
     [<FunctionName("HttpTrigger")>]
-    let run ([<HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)>]req: HttpRequest) (log: ILogger) =
+    member x.Run ([<HttpTrigger(AuthorizationLevel.Function, "get", Route = null)>]req: HttpRequest) (log: ILogger) =
         async {
             log.LogInformation("F# HTTP trigger function processed a request.")
 
-            let nameOpt = 
-                if req.Query.ContainsKey(Name) then
-                    Some(req.Query.[Name].[0])
-                else
-                    None
+            let x = getParamFromQueryString req XParam
+            let y = getParamFromQueryString req YParam
 
-            use stream = new StreamReader(req.Body)
-            let! reqBody = stream.ReadToEndAsync() |> Async.AwaitTask
-
-            let data = JsonConvert.DeserializeObject<NameContainer>(reqBody)
-
-            let name =
-                match nameOpt with
-                | Some n -> n
-                | None ->
-                    match data with
-                    | null -> ""
-                    | nc -> nc.Name
+            match x, y with
+            | Some x1, Some y1 ->
+                // Magic happens here
+                let result = injectedMultiplier x1 y1
+                return OkObjectResult(result) :> IActionResult
+            | _, _ -> return BadRequestResult() :> IActionResult
             
-            let responseMessage =             
-                if (String.IsNullOrWhiteSpace(name)) then
-                    "This HTTP triggered function executed successfully. Pass a name in the query string or in the request body for a personalized response."
-                else
-                    "Hello, " +  name + ". This HTTP triggered function executed successfully."
-
-            return OkObjectResult(responseMessage) :> IActionResult
         } |> Async.StartAsTask
