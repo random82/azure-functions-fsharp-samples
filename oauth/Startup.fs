@@ -1,4 +1,4 @@
-namespace FSharpFunction
+namespace Company.Function
 
 open System
 open System.Security.Claims
@@ -11,118 +11,87 @@ open Microsoft.IdentityModel.Tokens
 open Microsoft.AspNetCore.Http
 open System.IdentityModel.Tokens.Jwt
 
+
 //https://www.ben-morris.com/custom-token-authentication-in-azure-functions-using-bindings/
 
-
-
 module AccessTokenResult = 
-    type AccessTokenStatus = 
-        Valid = 0
-        | Expired = 1 
-        | Error = 2
-        | NoToken = 3
 
-
-    type TokenResult = {   
+    type SuccessResult = {   
         Principal: ClaimsPrincipal
-        Status: AccessTokenStatus
+    }
+
+    type ErrorResult = {   
         Exception: Exception
     }
 
-    // let Success(principal: ClaimsPrincipal) = 
-    //     TokenResult
-    //     {
-    //         Principal = principal
-    //         Status = AccessTokenStatus.Valid
-    //     }
+    type TokenResult = 
+        | Success of SuccessResult 
+        | Error of ErrorResult
+        | Expired of unit
+        | NoToken of unit
 
-    // let Expired  =
-    //     TokenResult
-    //     {
-    //         status = AccessTokenStatus.Expired
-    //     }
+    let success principal = 
+        Success {
+            Principal = principal
+        }
 
-    // let Error(ex: Exception) =
-    //     TokenResult
-    //     {
-    //         status = AccessTokenStatus.Error,
-    //         ex = ex
-    //     }
+    let expired  =
+        Expired 
 
-    // let NoToken() =
-    //     TokenResult
-    //     {
-    //         status = AccessTokenStatus.NoToken
-    //     };
+    let error ex  =
+        Error {
+            Exception = ex
+        }
+        
+    let noToken =
+        NoToken 
+
+type AccessTokenValidator = HttpRequest -> AccessTokenResult.TokenResult
 
 
-type AccessTokenProvider(issuerToken:string, audience:string, issuer:string) = 
-        let AUTH_HEADER_NAME = "Authorization"
-        let BEARER_PREFIX = "Bearer "
+type AccessTokenProvider(issuer: string, audience: string) = 
+    let authHeaderName = "Authorization"
+    let bearerPrefix = "Bearer "
 
-        member x.ValidateToken(request: HttpRequest) =
-            if request != null &&
-                request.Headers.ContainsKey(AUTH_HEADER_NAME) &&
-                request.Headers.[AUTH_HEADER_NAME].ToString().StartsWith(BEARER_PREFIX) then
+    member x.ValidateToken(request: HttpRequest) =
+        try 
+            if  request.Headers.ContainsKey(authHeaderName) &&
+                request.Headers.[authHeaderName].ToString().StartsWith(bearerPrefix) then
             
-                let token = request.Headers.[AUTH_HEADER_NAME].ToString().Substring(BEARER_PREFIX.Length);
-
+                let token = request.Headers.[authHeaderName].ToString().Substring(bearerPrefix.Length)
                 // Create the parameters
                 let tokenParams = TokenValidationParameters(
-                    RequireSignedTokens = true,
                     ValidAudience = audience,
                     ValidateAudience = true,
                     ValidIssuer = issuer,
                     ValidateIssuer = true,
-                    ValidateIssuerSigningKey = true,
-                    ValidateLifetime = true,
-                    IssuerSigningKey = new SymmetricSecurityKey(Convert.FromBase64String(issuerToken))
+                    ValidateIssuerSigningKey = false,
+                    ValidateLifetime = true
                 )
 
                 // Validate the token
                 let handler = JwtSecurityTokenHandler()
                 let result, securityToken = handler.ValidateToken(token, tokenParams);
-                AccessTokenResult.Success(result);
-            
+                AccessTokenResult.success(result)
             else
-                AccessTokenResult.NoToken();
-            // with (SecurityTokenExpiredException)
-            // {
-            //     return AccessTokenResult.Expired();
-            // }
-            // catch (Exception ex)
-            // {
-            //     return AccessTokenResult.Error(ex);
-            // }
+                AccessTokenResult.noToken()
+        with
+        | :? SecurityTokenExpiredException -> 
+            AccessTokenResult.expired()
+        | :? _ as ex ->
+            AccessTokenResult.error(ex)
 
 type MyStartup() = 
     inherit FunctionsStartup()
 
-    // override u.ConfigureAppConfiguration(builder: IFunctionsConfigurationBuilder) =
-    //     ignore
-
-    let jwtBearerOptions (cfg : JwtBearerOptions) =
-        cfg.SaveToken <- true
-        cfg.IncludeErrorDetails <- true
-        cfg.Authority <- System.Environment.GetEnvironmentVariable("OAUTH_AUTHORITY")
-        cfg.Audience <- System.Environment.GetEnvironmentVariable("OAUTH_AUDIENCE")
-        cfg.TokenValidationParameters <- TokenValidationParameters(
-            NameClaimType = ClaimTypes.NameIdentifier,
-            ValidateAudience = true
-        )
-
-    let authenticationOptions (o : AuthenticationOptions) =
-        o.DefaultAuthenticateScheme <- JwtBearerDefaults.AuthenticationScheme
-        o.DefaultChallengeScheme <- JwtBearerDefaults.AuthenticationScheme
 
     override u.Configure(builder: IFunctionsHostBuilder) =
         // Our dependency
-        let mutiply x y = x * y
-
         builder.Services.AddHttpClient() |> ignore
         // We can use plain functions as injected dependencies
-        builder.Services.AddAuthentication(authenticationOptions) 
-                .AddJwtBearer(Action<JwtBearerOptions> jwtBearerOptions) |> ignore
+        let issuer = "***REMOVED***"
+        let audience = "***REMOVED***"
+        builder.Services.AddSingleton<AccessTokenValidator>(AccessTokenProvider(issuer, audience).ValidateToken) |> ignore
 
 
 // FSharp way to create assembly targeted attributes
