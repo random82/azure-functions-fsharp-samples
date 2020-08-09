@@ -10,6 +10,10 @@ open Microsoft.AspNetCore.Authentication.JwtBearer
 open Microsoft.IdentityModel.Tokens
 open Microsoft.AspNetCore.Http
 open System.IdentityModel.Tokens.Jwt
+open System.Text
+open Microsoft.IdentityModel.Protocols
+open Microsoft.IdentityModel.Protocols.OpenIdConnect
+open System.Threading
 
 
 //https://www.ben-morris.com/custom-token-authentication-in-azure-functions-using-bindings/
@@ -49,7 +53,7 @@ module AccessTokenResult =
 type AccessTokenValidator = HttpRequest -> AccessTokenResult.TokenResult
 
 
-type AccessTokenProvider(issuer: string, audience: string) = 
+type AccessTokenProvider(tokenValidationParameters: TokenValidationParameters) = 
     let authHeaderName = "Authorization"
     let bearerPrefix = "Bearer "
 
@@ -59,20 +63,11 @@ type AccessTokenProvider(issuer: string, audience: string) =
                 request.Headers.[authHeaderName].ToString().StartsWith(bearerPrefix) then
             
                 let token = request.Headers.[authHeaderName].ToString().Substring(bearerPrefix.Length)
-                // Create the parameters
-                let tokenParams = TokenValidationParameters(
-                    ValidAudience = audience,
-                    ValidateAudience = true,
-                    ValidIssuer = issuer,
-                    ValidateIssuer = true,
-                    ValidateIssuerSigningKey = false,
-                    ValidateLifetime = true
-                )
 
                 // Validate the token
-                let handler = JwtSecurityTokenHandler()
-                let result, securityToken = handler.ValidateToken(token, tokenParams);
-                AccessTokenResult.success(result)
+                let validator = JwtSecurityTokenHandler()
+                let principal, securityToken = validator.ValidateToken(token, tokenValidationParameters);
+                AccessTokenResult.success(principal)
             else
                 AccessTokenResult.noToken()
         with
@@ -84,6 +79,39 @@ type AccessTokenProvider(issuer: string, audience: string) =
 type MyStartup() = 
     inherit FunctionsStartup()
 
+    let jwtBearerOptions () =
+        JwtBearerOptions(
+            SaveToken = true,
+            IncludeErrorDetails = true,
+            Authority = "***REMOVED***",
+            Audience = "***REMOVED***",
+            TokenValidationParameters = TokenValidationParameters(
+                NameClaimType = ClaimTypes.NameIdentifier,
+                ValidateAudience = true
+            )
+        )
+
+    let checkConfiguredSigningKey keys = 
+        do()
+
+    let documentRetriever = HttpDocumentRetriever()
+
+    let getKeys issuer = 
+        async{
+            let configurationManager = 
+                ConfigurationManager<OpenIdConnectConfiguration>(
+                    issuer + ".well-known/openid-configuration",
+                    OpenIdConnectConfigurationRetriever(),
+                    documentRetriever
+                )
+
+            let! openIdConfig = configurationManager.GetConfigurationAsync(CancellationToken.None) |> Async.AwaitTask
+            let signingKeys = seq openIdConfig.SigningKeys
+
+            checkConfiguredSigningKey signingKeys
+            return signingKeys
+        }
+        
 
     override u.Configure(builder: IFunctionsHostBuilder) =
         // Our dependency
@@ -91,7 +119,17 @@ type MyStartup() =
         // We can use plain functions as injected dependencies
         let issuer = "***REMOVED***"
         let audience = "***REMOVED***"
-        builder.Services.AddSingleton<AccessTokenValidator>(AccessTokenProvider(issuer, audience).ValidateToken) |> ignore
+
+        let keys =  getKeys issuer |> Async.RunSynchronously
+
+        let tokenValidationParameters = 
+            TokenValidationParameters(
+                ValidIssuer = issuer,
+                ValidAudience = audience,
+                IssuerSigningKeys = keys
+            )   
+
+        builder.Services.AddSingleton<AccessTokenValidator>(AccessTokenProvider(tokenValidationParameters).ValidateToken) |> ignore
 
 
 // FSharp way to create assembly targeted attributes

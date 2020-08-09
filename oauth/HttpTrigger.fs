@@ -19,7 +19,7 @@ type HttpTrigger(accessTokenValidator: AccessTokenValidator) =
 
             match accessToken with
             | Success token -> return OkObjectResult(token) :> IActionResult
-            | NoToken -> return UnauthorizedObjectResult("whaat") :> IActionResult
+            | NoToken _ -> return UnauthorizedObjectResult("whaat") :> IActionResult
             | Error ex -> return UnauthorizedObjectResult(ex.Exception) :> IActionResult
             | _ -> return BadRequestObjectResult("ascii shrug") :> IActionResult
             
