@@ -94,12 +94,8 @@ type MyStartup() =
         
 
     override u.Configure(builder: IFunctionsHostBuilder) =
-        // Our dependency
         builder.Services.AddHttpClient() |> ignore
 
-        let config = ConfigurationBuilder()
-
-        // We can use plain functions as injected dependencies
         let issuer = Environment.GetEnvironmentVariable("JWT_AUTHORITY")
         let audience = Environment.GetEnvironmentVariable("JWT_AUDIENCE")
 
