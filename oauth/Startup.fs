@@ -3,18 +3,13 @@ namespace Company.Function
 open System
 open System.Security.Claims
 open Microsoft.Azure.Functions.Extensions.DependencyInjection
-open Microsoft.Extensions.DependencyInjection;
-open Microsoft.AspNetCore.Authentication.JwtBearer
+open Microsoft.Extensions.DependencyInjection
 open Microsoft.IdentityModel.Tokens
 open Microsoft.AspNetCore.Http
 open System.IdentityModel.Tokens.Jwt
 open Microsoft.IdentityModel.Protocols
 open Microsoft.IdentityModel.Protocols.OpenIdConnect
 open System.Threading
-open Microsoft.Extensions.Configuration
-
-
-//https://www.ben-morris.com/custom-token-authentication-in-azure-functions-using-bindings/
 
 module AccessTokenResult = 
 
@@ -110,8 +105,6 @@ type MyStartup() =
 
         builder.Services.AddSingleton<AccessTokenValidator>(AccessTokenProvider(tokenValidationParameters).ValidateToken) |> ignore
 
-
 // FSharp way to create assembly targeted attributes
 [<assembly: FunctionsStartup(typeof<MyStartup>)>]
 do()
-
