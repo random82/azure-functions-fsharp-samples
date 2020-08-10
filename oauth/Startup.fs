@@ -4,16 +4,14 @@ open System
 open System.Security.Claims
 open Microsoft.Azure.Functions.Extensions.DependencyInjection
 open Microsoft.Extensions.DependencyInjection;
-open Microsoft.Extensions.Configuration
-open Microsoft.AspNetCore.Authentication
 open Microsoft.AspNetCore.Authentication.JwtBearer
 open Microsoft.IdentityModel.Tokens
 open Microsoft.AspNetCore.Http
 open System.IdentityModel.Tokens.Jwt
-open System.Text
 open Microsoft.IdentityModel.Protocols
 open Microsoft.IdentityModel.Protocols.OpenIdConnect
 open System.Threading
+open Microsoft.Extensions.Configuration
 
 
 //https://www.ben-morris.com/custom-token-authentication-in-azure-functions-using-bindings/
@@ -52,7 +50,6 @@ module AccessTokenResult =
 
 type AccessTokenValidator = HttpRequest -> AccessTokenResult.TokenResult
 
-
 type AccessTokenProvider(tokenValidationParameters: TokenValidationParameters) = 
     let authHeaderName = "Authorization"
     let bearerPrefix = "Bearer "
@@ -79,21 +76,6 @@ type AccessTokenProvider(tokenValidationParameters: TokenValidationParameters) =
 type MyStartup() = 
     inherit FunctionsStartup()
 
-    let jwtBearerOptions () =
-        JwtBearerOptions(
-            SaveToken = true,
-            IncludeErrorDetails = true,
-            Authority = "***REMOVED***",
-            Audience = "***REMOVED***",
-            TokenValidationParameters = TokenValidationParameters(
-                NameClaimType = ClaimTypes.NameIdentifier,
-                ValidateAudience = true
-            )
-        )
-
-    let checkConfiguredSigningKey keys = 
-        do()
-
     let documentRetriever = HttpDocumentRetriever()
 
     let getKeys issuer = 
@@ -107,8 +89,6 @@ type MyStartup() =
 
             let! openIdConfig = configurationManager.GetConfigurationAsync(CancellationToken.None) |> Async.AwaitTask
             let signingKeys = seq openIdConfig.SigningKeys
-
-            checkConfiguredSigningKey signingKeys
             return signingKeys
         }
         
@@ -116,9 +96,12 @@ type MyStartup() =
     override u.Configure(builder: IFunctionsHostBuilder) =
         // Our dependency
         builder.Services.AddHttpClient() |> ignore
+
+        let config = ConfigurationBuilder()
+
         // We can use plain functions as injected dependencies
-        let issuer = "***REMOVED***"
-        let audience = "***REMOVED***"
+        let issuer = Environment.GetEnvironmentVariable("JWT_AUTHORITY")
+        let audience = Environment.GetEnvironmentVariable("JWT_AUDIENCE")
 
         let keys =  getKeys issuer |> Async.RunSynchronously
 
