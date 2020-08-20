@@ -6,12 +6,9 @@
     <Compile Include="AccessToken.fs" />
     <Compile Include="Startup.fs" />
     <Compile Include="HttpTrigger.fs" />
-    <None Include="host.json">
+    <Content Include="*.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="local.settings.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+    </Content>
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="3.1.6" />

@@ -20,6 +20,7 @@ type HttpTrigger() =
             | Success token -> return OkObjectResult(token) :> IActionResult
             | NoToken _ -> return UnauthorizedObjectResult("whaat") :> IActionResult
             | Error ex -> return UnauthorizedObjectResult(ex.Exception) :> IActionResult
-            | _ -> return BadRequestObjectResult("ascii shrug") :> IActionResult
+            | Expired _ -> return BadRequestObjectResult("Expired") :> IActionResult
+            |  _ -> return BadRequestObjectResult("ascii shrug") :> IActionResult
             
         } |> Async.StartAsTask
