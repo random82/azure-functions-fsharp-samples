@@ -1,7 +1,7 @@
 namespace Company.Function
 open System;
 open System.Security.Claims;
-open System.Text;
+open System.Threading
 open System.Threading.Tasks;
 open Microsoft.AspNetCore.Authentication;
 open Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -11,8 +11,6 @@ open Microsoft.Extensions.DependencyInjection;
 open Microsoft.IdentityModel.Tokens;
 open Microsoft.IdentityModel.Protocols
 open Microsoft.IdentityModel.Protocols.OpenIdConnect
-open System.Threading
-open Microsoft.Azure.WebJobs.Host.Bindings
 
 
 module AuthenticationExtension =
@@ -31,29 +29,27 @@ module AuthenticationExtension =
                 )
 
             let! openIdConfig = configurationManager.GetConfigurationAsync(CancellationToken.None) |> Async.AwaitTask
-            let signingKeys = seq openIdConfig.SigningKeys
-            return signingKeys
+            return seq openIdConfig.SigningKeys
         }
 
     let CreateTokenValidationParameters() = 
-        let issuer = Environment.GetEnvironmentVariable("JWT_AUTHORITY")
         let audience = Environment.GetEnvironmentVariable("JWT_AUDIENCE")
-        let keys =  getKeys issuer |> Async.RunSynchronously
+        let issuer = Environment.GetEnvironmentVariable("JWT_AUTHORITY")
+        let keys =  issuer |> getKeys |> Async.RunSynchronously
 
-        let tokenValidationParameters = 
-                TokenValidationParameters(
-                    ValidIssuer = issuer,
-                    ValidAudience = audience,
-                    IssuerSigningKeys = keys
-                )  
-        tokenValidationParameters
+        TokenValidationParameters(
+            ValidIssuer = issuer,
+            ValidAudience = audience,
+            IssuerSigningKeys = keys
+        )
 
     type AuthenticationBuilder with 
         member this.AddFunctionsJwtBearer() =
+            let tokenValidationParameters = CreateTokenValidationParameters()
             this.AddJwtBearer("WebJobsAuthLevel", fun options -> 
                 options.Events <- JwtBearerEvents(
                     OnMessageReceived = fun c ->
-                        options.TokenValidationParameters <- CreateTokenValidationParameters()
+                        options.TokenValidationParameters <- tokenValidationParameters
                         Task.CompletedTask
                     ,OnTokenValidated = fun c ->
                         c.Principal.AddIdentity(
@@ -63,20 +59,16 @@ module AuthenticationExtension =
                         c.Success()
                         Task.CompletedTask
                 )
-                options.TokenValidationParameters <- CreateTokenValidationParameters()
+                options.TokenValidationParameters <- tokenValidationParameters
             )
 
     type IWebJobsBuilder with 
         member this.AddAuthentication() =
-            let services = this.Services
-            services.AddAuthentication()
+            this.Services.AddAuthentication()
                 .AddFunctionsJwtBearer()
 
         member this.AddAuthentication configure =
             if (configure = null) then
                 raise (ArgumentNullException("configure"))
-
-            let services = this.Services
-
-            services.Configure(configure) |> ignore
+            this.Services.Configure(configure) |> ignore
             this.AddAuthentication()
