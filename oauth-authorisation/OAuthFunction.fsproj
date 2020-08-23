@@ -5,6 +5,7 @@
   <ItemGroup>
     <Compile Include="AccessToken.fs" />
     <Compile Include="Authentication.fs" />
+    <Compile Include="Authorisation.fs" />
     <Compile Include="Startup.fs" />
     <Compile Include="HttpTrigger.fs" />
     <Content Include="*.json">

@@ -46,20 +46,22 @@ module AuthenticationExtension =
     type AuthenticationBuilder with 
         member this.AddFunctionsJwtBearer() =
             let tokenValidationParameters = CreateTokenValidationParameters()
-            this.AddJwtBearer("WebJobsAuthLevel", fun options -> 
-                options.Events <- JwtBearerEvents(
-                    OnMessageReceived = fun c ->
-                        options.TokenValidationParameters <- tokenValidationParameters
-                        Task.CompletedTask
-                    ,OnTokenValidated = fun c ->
-                        c.Principal.AddIdentity(
-                            ClaimsIdentity(
-                                [Claim(AuthLevelClaimType, AuthorizationLevel.Function.ToString())]
-                            ))
-                        c.Success()
-                        Task.CompletedTask
-                )
-                options.TokenValidationParameters <- tokenValidationParameters
+            this.AddJwtBearer(
+                JwtBearerDefaults.AuthenticationScheme, 
+                fun options -> 
+                    options.Events <- JwtBearerEvents(
+                        OnMessageReceived = fun c ->
+                            options.TokenValidationParameters <- tokenValidationParameters
+                            Task.CompletedTask
+                        ,OnTokenValidated = fun c ->
+                            c.Principal.AddIdentity(
+                                ClaimsIdentity(
+                                    [Claim(AuthLevelClaimType, AuthorizationLevel.Function.ToString())]
+                                ))
+                            c.Success()
+                            Task.CompletedTask
+                    )
+                    options.TokenValidationParameters <- tokenValidationParameters
             )
 
     type IWebJobsBuilder with 
@@ -72,3 +74,5 @@ module AuthenticationExtension =
                 raise (ArgumentNullException("configure"))
             this.Services.Configure(configure) |> ignore
             this.AddAuthentication()
+
+
