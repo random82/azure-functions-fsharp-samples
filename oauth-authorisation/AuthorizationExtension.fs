@@ -7,11 +7,9 @@ open Microsoft.AspNetCore.Http
 open Microsoft.Extensions.DependencyInjection
 
 
-type IWebJobsHttpAuthorizationHandler =
-    abstract member OnAuthorizingFunctionInstance: functionContext: FunctionExecutingContext ->  httpContext:HttpContext -> Task
 
 [<AttributeUsage(AttributeTargets.Class ||| AttributeTargets.Method, AllowMultiple = true, Inherited = true)>]
-type WebJobAuthorizeAttribute(policy: string)  =
+type FunctionAuthorizeAttribute(policy: string)  =
     inherit FunctionInvocationFilterAttribute()
 
     let valueKey = "__AuthZProcessed"
@@ -39,10 +37,10 @@ type WebJobAuthorizeAttribute(policy: string)  =
         | _ -> None
 
     let authorizeRequest(executingContext, httpContext: HttpContext) =
-        let handler = httpContext.RequestServices.GetRequiredService<IWebJobsHttpAuthorizationHandler>()
+        let handler = httpContext.RequestServices.GetRequiredService<IFunctionHttpAuthorizationHandler>()
         handler.OnAuthorizingFunctionInstance executingContext httpContext
     
-    new () = WebJobAuthorizeAttribute String.Empty
+    new () = FunctionAuthorizeAttribute String.Empty
 
     interface IFunctionInvocationFilter with 
         member this.OnExecutingAsync(executingContext, cancellationToken) =
@@ -51,6 +49,29 @@ type WebJobAuthorizeAttribute(policy: string)  =
                 let httpContextResult = getHttpContext executingContext
                 match httpContextResult with
                 | Some httpContext -> authorizeRequest(executingContext, httpContext) 
+                                        |> Async.StartAsTask :> Task
                 | _ -> Task.CompletedTask
             | true -> Task.CompletedTask
 
+open Microsoft.Azure.WebJobs.Description
+open Microsoft.Azure.WebJobs.Host.Config
+[<Extension("FunctionAuthorize")>]
+type FunctionsAuthorizeExtension() = 
+    interface IExtensionConfigProvider with
+        member this.Initialize(config) = 
+            do()
+
+open Microsoft.Azure.WebJobs
+open Microsoft.Azure.WebJobs.Hosting
+open Microsoft.Azure.WebJobs.Host.Bindings
+type FunctionsAuthorizeWebJobsStartup =
+    interface IWebJobsStartup with
+        member this.Configure(builder) =
+            builder.Services.AddSingleton<IBindingProvider, FunctionAuthorizeBindingProvider>();
+            builder.Services.AddSingleton<IFunctionAuthorizationFilterIndex, FunctionAuthorizationFilterIndex>();
+            builder.Services.AddSingleton<IFunctionHttpAuthorizationHandler, FunctionHttpAuthorizationHandler>();
+            builder.AddExtension<FunctionAuthorizeExtension>();
+
+
+[<assembly: WebJobsStartup(typeof<FunctionsAuthorizeWebJobsStartup>)>]
+do()
