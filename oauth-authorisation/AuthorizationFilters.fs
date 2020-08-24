@@ -26,4 +26,5 @@ type IFunctionAuthorizationFilterIndex =
 
 type IFunctionHttpAuthorizationHandler =
     abstract member OnAuthorizingFunctionInstance: functionContext: FunctionExecutingContext 
-                                                    ->  httpContext: HttpContext -> Async<unit>
+                                                    ->  httpContext: HttpContext 
+                                                    -> Async<unit>
