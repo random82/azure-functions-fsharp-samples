@@ -1,0 +1,1 @@
+GET http://localhost:7071/api/Multiply?x=3&y=12

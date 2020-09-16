@@ -7,10 +7,8 @@ open Microsoft.Azure.WebJobs.Extensions.Http
 open Microsoft.AspNetCore.Http
 open Microsoft.Extensions.Logging
 
-// Using type notation for functions allows injections
-type HttpTrigger(injectedMultiplier: FSharpFunction.Multiplier) =
-
-    // For convenience, it's better to have a central place for the literal.
+[<AutoOpen>]
+module HttpTools = 
     [<Literal>]
     let XParam = "x"
     [<Literal>]
@@ -18,25 +16,48 @@ type HttpTrigger(injectedMultiplier: FSharpFunction.Multiplier) =
 
     let getParamFromQueryString (req:HttpRequest) name = 
         if req.Query.ContainsKey(name) then
-            let param = req.Query.[name].[0]            
+            let param = req.Query.[name].[0]
             match Int32.TryParse param with
             | true, i -> Some(i)
             | _ -> None
         else
             None
 
-    [<FunctionName("HttpTrigger")>]
-    member x.Run ([<HttpTrigger(AuthorizationLevel.Function, "get", Route = null)>]req: HttpRequest) (log: ILogger) =
+// Using type notation for functions allows injections
+type HttpMultiplier(injectedMultiplier: Multiplier) =
+    // For convenience, it's better to have a central place for  literals.
+    [<FunctionName("Multiply")>]
+    member x.Multiply ([<HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = null)>]req: HttpRequest) 
+                    (log: ILogger) =
         async {
-            log.LogInformation("F# HTTP trigger function processed a request.")
+            log.LogInformation("F# Mutliply function processed a request.")
 
             let x = getParamFromQueryString req XParam
             let y = getParamFromQueryString req YParam
 
             match x, y with
             | Some x1, Some y1 ->
-                // Magic happens here
-                let result = injectedMultiplier x1 y1
+                let unwrap (MultiplyResult r) = r
+                let result = injectedMultiplier x1 y1 |> unwrap
+                return OkObjectResult(result) :> IActionResult
+            | _, _ -> return BadRequestResult() :> IActionResult
+            
+        } |> Async.StartAsTask
+
+type HttpAdder(injectedAdder: Adder) =
+    [<FunctionName("Add")>]
+    member x.Add ([<HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = null)>]req: HttpRequest) 
+                    (log: ILogger) =
+        async {
+            log.LogInformation("F# Add function processed a request.")
+
+            let x = getParamFromQueryString req XParam
+            let y = getParamFromQueryString req YParam
+
+            match x, y with
+            | Some x1, Some y1 ->
+                let unwrap (AdditionResult r) = r
+                let result = injectedAdder x1 y1 |> unwrap
                 return OkObjectResult(result) :> IActionResult
             | _, _ -> return BadRequestResult() :> IActionResult
             
