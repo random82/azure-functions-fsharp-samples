@@ -16,7 +16,7 @@ module HttpTools =
 
     let getParamFromQueryString (req:HttpRequest) name = 
         if req.Query.ContainsKey(name) then
-            let param = req.Query.[name].[0]            
+            let param = req.Query.[name].[0]
             match Int32.TryParse param with
             | true, i -> Some(i)
             | _ -> None
@@ -37,14 +37,14 @@ type HttpMultiplier(injectedMultiplier: Multiplier) =
 
             match x, y with
             | Some x1, Some y1 ->
-                // Magic happens here
-                let result = injectedMultiplier x1 y1
+                let unwrap (MultiplyResult r) = r
+                let result = injectedMultiplier x1 y1 |> unwrap
                 return OkObjectResult(result) :> IActionResult
             | _, _ -> return BadRequestResult() :> IActionResult
             
         } |> Async.StartAsTask
 
-type HttpAdded(injectedAdder: Adder) =
+type HttpAdder(injectedAdder: Adder) =
     [<FunctionName("Add")>]
     member x.Add ([<HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = null)>]req: HttpRequest) 
                     (log: ILogger) =
@@ -56,8 +56,8 @@ type HttpAdded(injectedAdder: Adder) =
 
             match x, y with
             | Some x1, Some y1 ->
-                // Magic happens here
-                let result = injectedAdder x1 y1
+                let unwrap (AdditionResult r) = r
+                let result = injectedAdder x1 y1 |> unwrap
                 return OkObjectResult(result) :> IActionResult
             | _, _ -> return BadRequestResult() :> IActionResult
             
