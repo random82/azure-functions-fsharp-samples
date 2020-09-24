@@ -37,8 +37,7 @@ type HttpMultiplier(injectedMultiplier: Multiplier) =
 
             match x, y with
             | Some x1, Some y1 ->
-                let unwrap (MultiplyResult r) = r
-                let result = injectedMultiplier x1 y1 |> unwrap
+                let result = match injectedMultiplier with MulDef m -> m x1 y1 
                 return OkObjectResult(result) :> IActionResult
             | _, _ -> return BadRequestResult() :> IActionResult
             
@@ -56,8 +55,7 @@ type HttpAdder(injectedAdder: Adder) =
 
             match x, y with
             | Some x1, Some y1 ->
-                let unwrap (AdditionResult r) = r
-                let result = injectedAdder x1 y1 |> unwrap
+                let result = match injectedAdder with AddDef m -> m x1 y1 
                 return OkObjectResult(result) :> IActionResult
             | _, _ -> return BadRequestResult() :> IActionResult
             
